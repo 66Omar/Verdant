@@ -51,8 +51,11 @@ def has_number(text):
 def strip_string(text):
     new = ''
     for each in text:
-        if each in '1234567890':
+        try:
+            int(each)
             new += each
+        except ValueError:
+            pass
     return new
 
 
