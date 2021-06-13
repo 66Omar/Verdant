@@ -216,9 +216,6 @@ class Ui(QMainWindow):
         self.show_this(self.seasons, self.seasons_but)
 
     def back_to_episodes(self, state=None):
-        if self.download_worker is not None:
-            if self.download_worker.driver is not None:
-                self.download_worker.driver.quit()
         self.close_this(self.downloads, button=self.downloads_but,
                         download_button=self.auto_but, label=self.label, state=3)
         if state == 0:
