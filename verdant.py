@@ -66,6 +66,7 @@ class Ui(QMainWindow):
         self.search_screen.search_btn.clicked.connect(self.init_search_worker)
 
     def init_search_worker(self):
+        self.search_screen.search_btn.disconnect()
         if self.items is None:
             self.search_worker = SearchWorker(self.search_screen.getText())
             self.search_worker.start()
@@ -202,6 +203,7 @@ class Ui(QMainWindow):
             webbrowser.open(string)
 
     def back_to_search(self):
+        self.search_screen.search_btn.clicked.connect(self.init_search_worker)
         self.close_this(self.items, self.items_but, label=self.label, state=0)
         self.show_this(self.search_screen)
 
