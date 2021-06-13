@@ -149,10 +149,11 @@ class Ui(QMainWindow):
         self.episodes_but.clicked.connect(self.back_to_seasons)
 
     def episodes_quality(self):
-        dialog = QualityDialog(self)
-        dialog.exec_()
-        if dialog.quality is not None:
-            self.prepare_download_page(2, self.episodes.get_downloads(), dialog.quality)
+        if len(self.episodes.get_downloads()) > 0:
+            dialog = QualityDialog(self)
+            dialog.exec_()
+            if dialog.quality is not None:
+                self.prepare_download_page(2, self.episodes.get_downloads(), dialog.quality)
 
     def prepare_download_page(self, page, items, quality):
         self.quality = quality
