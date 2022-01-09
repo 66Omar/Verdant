@@ -3,8 +3,9 @@ import webbrowser
 from seasonsUi import Seasons
 from episodesUi import Episodes
 from itemsUi import Items
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QVBoxLayout
+from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QMovie
+from PyQt5.QtWidgets import QMainWindow, QApplication, QWidget, QVBoxLayout, QLabel, QProgressBar
 from searchUi import Ui as Search
 from downloadUi import Downloads
 from Ui.back_button import BackButton
@@ -39,6 +40,25 @@ class Ui(QMainWindow):
         self.auto_but = None
         self.get_selected = None
 
+        self.loading_label = QLabel()
+        self.loading_movie = QMovie("Ui\\loading.gif")
+        self.loading_label.setStyleSheet('''
+          QLabel {
+            margin-top: 10px;
+          }
+        ''')
+
+        self.loading_label.setVisible(False)
+        self.loading_text_info = None
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setStyleSheet('''
+            QProgressBar::chunk {
+                background-color: #05B8CC;
+            }
+        ''')
+        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setVisible(False)
         self.label = None
 
         self.auto = True
@@ -51,14 +71,15 @@ class Ui(QMainWindow):
         self.download_worker = None
 
         self.name = None
-        self.setFixedWidth(1000)
-        self.setFixedHeight(650)
+        self.setMinimumSize(1000, 650)
         self.main_win = QWidget()
         self.main_lo = QVBoxLayout()
 
         self.search_screen = Search(self)
 
         self.main_lo.setContentsMargins(0, 0, 0, 0)
+        self.main_lo.addWidget(self.loading_label, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.main_lo.addWidget(self.progress_bar)
         self.main_lo.addWidget(self.search_screen)
         self.main_win.setLayout(self.main_lo)
         self.setCentralWidget(self.main_win)
@@ -71,17 +92,19 @@ class Ui(QMainWindow):
             self.search_worker = SearchWorker(self.search_screen.getText())
             self.search_worker.start()
             self.search_worker.done.connect(self.items_page)
+            self.search_worker.state.connect(self.showProgress)
 
-    def init_seasons_worker(self, item):
+    def init_seasons_worker(self, item, name):
         if self.seasons is None:
             self.items.itemDoubleClicked.disconnect()
             self.items_but.setEnabled(False)
             current_item = self.items.itemWidget(item)
-            selected_item = self.items.needed[current_item.get_text()]
+            selected_item = self.items.needed[current_item.get_text()][0]
             self.name = current_item.get_text()
-            self.seasons_worker = SeasonWorker(selected_item)
+            self.seasons_worker = SeasonWorker(selected_item, name)
             self.seasons_worker.start()
             self.seasons_worker.done.connect(self.seasons_page)
+            self.seasons_worker.state.connect(self.showProgress)
 
     def init_episodes_worker(self, item):
         if self.episodes is None:
@@ -93,16 +116,16 @@ class Ui(QMainWindow):
             self.episodes_worker = EpisodesWorker(season)
             self.episodes_worker.start()
             self.episodes_worker.done.connect(self.episodes_page)
+            self.episodes_worker.state.connect(self.showProgress)
+
 
     def items_page(self, items):
         self.hide_this(self.search_screen)
         self.items_but = BackButton()
         if len(items[0]) == 0 and items[1] == 0:
-            self.label = ErrorLabel()
             self.show_this(self.items, self.items_but)
             self.show_error("No results found!")
         elif items[1] == 1:
-            self.label = ErrorLabel()
             self.show_this(self.items, self.items_but)
             self.show_error("No internet connection!")
         else:
@@ -180,13 +203,14 @@ class Ui(QMainWindow):
             self.downloads = Downloads(self.name, items, parent=self)
             self.show_this(self.downloads, self.downloads_but, self.auto_but)
         self.auto_but.clicked.connect(self.auto_state)
-        self.downloads_but.clicked.connect(lambda: self.back_to_episodes(state))
+        self.downloads_but.clicked.connect(lambda: self.showLoading(state))
         QApplication.processEvents()
         list_items = self.downloads.get_download_links()
         self.download_worker = DownloadWorker(self.downloads, list_items, self.quality)
         self.download_worker.start()
         self.download_worker.update.connect(self.update_this)
         self.download_worker.send.connect(self.start_downloading)
+        self.download_worker.state.connect(self.showProgress)
 
     def auto_state(self):
         self.auto = self.auto_but.state
@@ -206,6 +230,7 @@ class Ui(QMainWindow):
         self.search_screen.search_btn.clicked.connect(self.init_search_worker)
         self.close_this(self.items, self.items_but, label=self.label, state=0)
         self.show_this(self.search_screen)
+        self.search_screen.search_bar.setFocus()
 
     def back_to_items(self):
         self.close_this(self.seasons, self.seasons_but, label=self.label, state=1)
@@ -218,6 +243,7 @@ class Ui(QMainWindow):
         self.show_this(self.seasons, self.seasons_but)
 
     def back_to_episodes(self, state=None):
+        self.endLoading()
         self.close_this(self.downloads, button=self.downloads_but,
                         download_button=self.auto_but, label=self.label, state=3)
         if state == 0:
@@ -226,11 +252,6 @@ class Ui(QMainWindow):
             self.show_this(self.episodes, self.episodes_but, self.get_selected)
         else:
             self.show_this(self.seasons, self.seasons_but)
-        if self.download_worker is not None:
-            self.download_worker.quit()
-            self.download_worker.con = False
-            if self.download_worker.driver is not None:
-                self.download_worker.driver.quit()
 
     def hide_this(self, page, button=None, download_button=None):
         if button is not None:
@@ -254,6 +275,7 @@ class Ui(QMainWindow):
         if download_button is not None:
             self.main_lo.addWidget(download_button, alignment=Qt.AlignmentFlag.AlignRight)
             download_button.show()
+        self.progress_bar.setVisible(False)
 
     def close_this(self, page, button=None, download_button=None, label=None, state=None):
         if label is not None:
@@ -289,21 +311,54 @@ class Ui(QMainWindow):
             self.downloads = None
             self.downloads_but = None
             self.auto_but = None
+        self.progress_bar.setVisible(False)
 
     def show_error(self, text):
+        self.label = ErrorLabel()
         self.label.setText(text)
         self.main_lo.addWidget(self.label, alignment=Qt.AlignmentFlag.AlignCenter)
         self.label.show()
 
+    def showLoading(self, state):
+        self.progress_bar.setVisible(False)
+        self.downloads_but.setVisible(False)
+        self.loading_label.setVisible(True)
+        self.loading_movie.setScaledSize(QSize(50, 50))
+        self.loading_label.setMovie(self.loading_movie)
+        self.loading_movie.start()
+        if self.download_worker.driver is not None or self.download_worker.isRunning():
+            print(self.download_worker.driver, self.download_worker)
+            self.download_worker.con = False
+            self.download_worker.finished.connect(lambda: self.back_to_episodes(state))
+        else:
+            self.back_to_episodes(state)
+
+    def endLoading(self):
+        self.loading_label.setVisible(False)
+
+    def showProgress(self, state):
+        if state == 0:
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setValue(15)
+        elif state == 1:
+            self.progress_bar.setValue(80)
+        elif state == 2:
+            self.progress_bar.setValue(100)
+            self.progress_bar.setVisible(False)
+        else:
+            self.progress_bar.setValue(state)
+
+
+win = None
 
 try:
     app = QApplication(sys.argv)
     win = Ui()
     win.show()
+    win.search_screen.search_bar.setFocus()
     sys.exit(app.exec_())
 except:
-    if win.download_worker is not None:
-        win.download_worker.quit()
-        win.download_worker.con = False
-        if win.download_worker.driver is not None:
-            win.download_worker.driver.quit()
+    if win is not None:
+        if win.download_worker is not None:
+            if win.download_worker.driver is not None:
+                win.download_worker.driver.quit()
