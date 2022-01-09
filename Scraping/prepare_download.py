@@ -1,11 +1,12 @@
 import time
 
 
-def get_download_link(driver, url, load_time, quality):
+def get_download_link(worker, driver, url, load_time, quality):
     link = url
     driver.get(link)
     driver.find_element_by_class_name('nobr').click()
     time.sleep(load_time)
+    worker.state.emit(30)
     search = driver.find_elements_by_tag_name('tbody')
     search = search[1]
     driver.switch_to.window(driver.window_handles[1])
@@ -16,9 +17,8 @@ def get_download_link(driver, url, load_time, quality):
         for cell in row.find_elements_by_tag_name('td'):
             if 'MB' not in cell.text and has_number(cell.text):
                 available_qualities.append(strip_string(cell.text))
-
+    worker.state.emit(40)
     quality = closest(quality, available_qualities)
-
     for row in search.find_elements_by_tag_name('tr'):
         for cell in row.find_elements_by_tag_name('td'):
             if str(quality) in str(cell.text):
@@ -31,12 +31,13 @@ def get_download_link(driver, url, load_time, quality):
     driver.get(download_page)
     driver.find_element_by_tag_name('h2').click()
     name = driver.find_element_by_tag_name('h2').text
+    worker.state.emit(50)
     time.sleep(load_time)
     driver.refresh()
     download_page = driver.find_elements_by_tag_name('a')
     download_link = download_page[5].get_attribute('href')
 
-    driver.quit()
+    worker.state.emit(60)
 
     return [download_link, name]
 
