@@ -1,10 +1,12 @@
 from PyQt5 import QtWidgets, QtGui
 from PyQt5.QtWidgets import QLineEdit, QPushButton, QLabel
 from PyQt5.QtGui import QFont
-from PyQt5.QtCore import QRect, QCoreApplication, Qt
+from PyQt5.QtCore import QRect, QCoreApplication, Qt, pyqtSignal
 
 
 class Ui(QtWidgets.QWidget):
+    resized = pyqtSignal()
+
     def __init__(self, parent=None):
         super(Ui, self).__init__(parent)
         self.name = QLabel(self)
@@ -13,12 +15,11 @@ class Ui(QtWidgets.QWidget):
         self.search_bar.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.style_views()
         self.adjust_views()
-
-
+        self.resized.connect(self.adjust_views)
 
     def style_views(self):
         self.search_bar.setObjectName(u"search_bar")
-        self.search_bar.setGeometry(QRect(150, 220, 550, 50))
+        self.search_bar.setGeometry(QRect(150, 220, int(self.parent().width() * 0.60), 50))
         font = QFont()
         font.setPointSize(15)
         self.search_bar.setFont(font)
@@ -61,20 +62,38 @@ class Ui(QtWidgets.QWidget):
 
         self.search_bar.textChanged.connect(self.hint)
 
-
         self.search_bar.setPlaceholderText(QCoreApplication.translate("MainWindow", u"Search Egybest..", None))
         self.search_btn.setText(QCoreApplication.translate("MainWindow", u"Search", None))
         self.search_btn.setShortcut(QCoreApplication.translate("MainWindow", u"Return", None))
         self.name.setText(QCoreApplication.translate("MainWindow", u"Verdant", None))
 
     def adjust_views(self):
+        BOTTOM_MARGIN = 80
         width = self.parent().width()
-        self.name.setGeometry(int((width-self.name.width())/2), int(self.name.y()), int(self.name.width()), int(self.name.height()))
-        self.search_btn.setGeometry(int((width - self.search_btn.width()) / 2), int(self.search_btn.y()), int(self.search_btn.width()),
-                              int(self.search_btn.height()))
-        self.search_bar.setGeometry(int((width - self.search_bar.width()) / 2), int(self.search_bar.y()),
-                                    int(self.search_bar.width()),
-                                    int(self.search_bar.height()))
+        name_middle = ((self.parent().height() - self.name.height()) // 2) - self.search_bar.height() - self.search_btn.height() - BOTTOM_MARGIN
+        search_bar_middle = ((self.parent().height() - self.search_bar.height()) // 2) - self.search_btn.height()
+        search_btn_middle = ((self.parent().height() - self.search_btn.height()) // 2) + BOTTOM_MARGIN
+
+        self.name.setGeometry(int((width-self.name.width())/2),
+                              name_middle,
+                              int(self.name.width()),
+                              int(self.name.height()))
+
+        self.search_btn.setFixedWidth(int(self.parent().width() * 0.2))
+        self.search_btn.setGeometry(int((width - self.search_btn.width()) / 2),
+                                    search_btn_middle,
+                                    int(self.search_btn.width()),
+                                    int(self.search_btn.height()))
+
+        self.search_bar.setFixedWidth(int(self.parent().width() * 0.60))
+        self.search_bar.setGeometry(int((width - self.search_bar.width()) / 2),
+                                    search_bar_middle,
+                                    self.search_bar.width(),
+                                    self.search_bar.height())
+
+    def resizeEvent(self, event):
+        self.resized.emit()
+        return super(Ui, self).resizeEvent(event)
 
     def hint(self):
         if self.search_bar.text() == "":
