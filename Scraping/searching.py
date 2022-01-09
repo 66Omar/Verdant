@@ -1,9 +1,10 @@
 import requests
 from bs4 import BeautifulSoup as bs
 from collections import OrderedDict
+from Scraping.get_link import get_link
 
 
-search = 'https://beal.egybest.xyz/explore/?q='
+search = get_link()
 
 
 def search_for(name):
@@ -14,7 +15,12 @@ def search_for(name):
     items_list = OrderedDict()
 
     for item in search_result.find_all('a', {'class': "movie"}):
+        img = item.find('img')
         title = item.find("span", {'class': 'title'})
-        items_list[title.text] = item['href']
+        try:
+            quality = item.find('span', {'class': 'ribbon'}).text
+        except AttributeError:
+            quality = 'Unknown'
+        items_list[title.text] = [item['href'], img['src'], quality]
 
     return items_list
